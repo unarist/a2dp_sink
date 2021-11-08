@@ -1,5 +1,5 @@
 
-use std::{error::Error, fmt::Display, io::stdin};
+use std::{cell::RefCell, error::Error, io::stdin, rc::Rc};
 
 use windows::{Devices::Enumeration::{DeviceInformation, DeviceInformationUpdate}, Foundation::TypedEventHandler, Media::Audio::{AudioPlaybackConnection, AudioPlaybackConnectionOpenResultStatus}, runtime::HSTRING};
 
@@ -13,18 +13,27 @@ fn main() {
 fn run() -> Result<(), Box<dyn Error>> {
     let selector = AudioPlaybackConnection::GetDeviceSelector()?;
     let device_watcher = DeviceInformation::CreateWatcherAqsFilter(selector)?;
+    let connection: Rc<RefCell<Option<AudioPlaybackConnection>>> = Rc::new(RefCell::new(None));
+    let connection2 = connection.clone();
     
-    device_watcher.Added(TypedEventHandler::new(|_sender, args: &Option<DeviceInformation>| {
+    device_watcher.Added(TypedEventHandler::new(  move |_sender, args: &Option<DeviceInformation>| {
         // ここで ? してもイベントハンドラのResultに反映されるだけ
         let device_info = args.as_ref().unwrap();
         println!("Added: {} ({})", device_info.Id().unwrap(), device_info.Name().unwrap());
-        connect(device_info.Id().unwrap()).unwrap();
+        let new_connection = connect(device_info.Id().unwrap()).unwrap();
+        connection.replace(Some(new_connection));
         Ok(())
     })).unwrap();
-    device_watcher.Removed(TypedEventHandler::new(|_sender, args: &Option<DeviceInformationUpdate>| {
+    device_watcher.Removed(TypedEventHandler::new( move |_sender, args: &Option<DeviceInformationUpdate>| {
         // ここで ? してもイベントハンドラのResultに反映されるだけ
         let update = args.as_ref().unwrap();
         println!("Removed: {0}", update.Id().unwrap());
+        if let Some(con) = connection2.borrow().as_ref() {
+            if con.DeviceId().unwrap() == update.Id().unwrap() {
+                connection2.replace(None);
+                println!("[AudioPlaybackConnection] Dispose")
+            }
+        }
         Ok(())
     })).unwrap();
     device_watcher.Start()?;
@@ -45,7 +54,7 @@ fn format_status(status: AudioPlaybackConnectionOpenResultStatus) -> String {
     }
 }
 
-fn connect(device_id: HSTRING) -> Result<(), Box<dyn Error>> {
+fn connect(device_id: HSTRING) -> Result<AudioPlaybackConnection, Box<dyn Error>> {
     let connection = AudioPlaybackConnection::TryCreateFromId(device_id)?;
     connection.StateChanged(TypedEventHandler::new(|sender: &Option<AudioPlaybackConnection>, _| {
         // ここで ? してもイベントハンドラのResultに反映されるだけ
@@ -57,6 +66,6 @@ fn connect(device_id: HSTRING) -> Result<(), Box<dyn Error>> {
     let result = connection.Open()?;
     println!("[AudioPlaybackConnection] Open: {}", format_status(result.Status()?));
     // TODO: non-Success handling
-    Ok(())
+    Ok(connection)
 }
 
