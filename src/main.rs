@@ -1,7 +1,7 @@
 
 use std::{cell::RefCell, error::Error, io::stdin, rc::Rc};
 
-use windows::{Devices::Enumeration::{DeviceInformation, DeviceInformationUpdate}, Foundation::TypedEventHandler, Media::Audio::{AudioPlaybackConnection, AudioPlaybackConnectionOpenResultStatus}, runtime::HSTRING};
+use windows::{Devices::Enumeration::{DeviceInformation, DeviceInformationUpdate}, Foundation::TypedEventHandler, Media::Audio::{AudioPlaybackConnection, AudioPlaybackConnectionOpenResultStatus, AudioPlaybackConnectionState}, runtime::HSTRING};
 
 fn main() {
     match run() {
@@ -44,6 +44,14 @@ fn run() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+fn format_state(state: AudioPlaybackConnectionState) -> String {
+    match state {
+        AudioPlaybackConnectionState::Opened => String::from("Opened"),
+        AudioPlaybackConnectionState::Closed => String::from("Closed"),
+        x => format!("{:?}", x)
+    }
+}
+
 fn format_status(status: AudioPlaybackConnectionOpenResultStatus) -> String {
     match status {
         AudioPlaybackConnectionOpenResultStatus::Success => String::from("Success"),
@@ -59,7 +67,7 @@ fn connect(device_id: HSTRING) -> Result<AudioPlaybackConnection, Box<dyn Error>
     connection.StateChanged(TypedEventHandler::new(|sender: &Option<AudioPlaybackConnection>, _| {
         // ここで ? してもイベントハンドラのResultに反映されるだけ
         let connection = sender.as_ref().unwrap();
-        println!("[AudioPlaybackConnection] OnStateChanged: {:?}", connection.State().unwrap());
+        println!("[AudioPlaybackConnection] OnStateChanged: {}", format_state(connection.State().unwrap()));
         Ok(())
     }))?;
     connection.Start()?;
