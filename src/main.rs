@@ -19,7 +19,7 @@ fn run() -> Result<(), Box<dyn Error>> {
     device_watcher.Added(TypedEventHandler::new(  move |_sender, args: &Option<DeviceInformation>| {
         // ここで ? してもイベントハンドラのResultに反映されるだけ
         let device_info = args.as_ref().unwrap();
-        println!("Added: {} ({})", device_info.Id().unwrap(), device_info.Name().unwrap());
+        println!("[DeviceWatcher] Added: {} ({})", device_info.Id().unwrap(), device_info.Name().unwrap());
         let new_connection = connect(device_info.Id().unwrap()).unwrap();
         connection.replace(Some(new_connection));
         Ok(())
@@ -27,7 +27,7 @@ fn run() -> Result<(), Box<dyn Error>> {
     device_watcher.Removed(TypedEventHandler::new( move |_sender, args: &Option<DeviceInformationUpdate>| {
         // ここで ? してもイベントハンドラのResultに反映されるだけ
         let update = args.as_ref().unwrap();
-        println!("Removed: {0}", update.Id().unwrap());
+        println!("[DeviceWatcher] Removed: {0}", update.Id().unwrap());
         if let Some(con) = connection2.borrow().as_ref() {
             if con.DeviceId().unwrap() == update.Id().unwrap() {
                 connection2.replace(None);
